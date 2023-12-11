@@ -1,16 +1,27 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { NormalizeError } from "next/dist/shared/lib/utils";
 
-export const get = query({
-  handler: async (ctx) => {
+export const getSidebar = query({
+  args: {
+    parentDocument: v.optional(v.id("documents")),
+  },
+  handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-
     if (!identity) {
-      throw new Error("Не аутенфицирован");
+      throw new NormalizeError("Не авторизован");
     }
-    const document = await ctx.db.query("documents").collect();
+    const userId = identity.subject;
+    const documents = await ctx.db
+      .query("documents")
+      .withIndex("by_user_parent", (q) =>
+        q.eq("userId", userId).eq("parentDocument", args.parentDocument)
+      )
+      .filter((q) => q.eq(q.field("isArhived"), false))
+      .order("desc")
+      .collect();
 
-    return document;
+    return documents;
   },
 });
 
